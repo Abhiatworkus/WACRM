@@ -1,9 +1,11 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { LogOut, Menu, Settings as SettingsIcon, User } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   Avatar,
   AvatarFallback,
@@ -45,11 +47,13 @@ interface HeaderProps {
 
 import { useTranslations } from "next-intl";
 
-export function Header({ onOpenSidebar }: HeaderProps) {
+function HeaderInner({ onOpenSidebar }: HeaderProps) {
   const t = useTranslations("Header");
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { profile, signOut } = useAuth();
   const titleKey = getPageTitleKey(pathname);
+  const isMobileChatOpen = pathname === "/inbox" && !!searchParams.get("c");
 
   const initial =
     profile?.full_name?.charAt(0)?.toUpperCase() ??
@@ -57,7 +61,12 @@ export function Header({ onOpenSidebar }: HeaderProps) {
     "U";
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4 lg:px-6">
+    <header
+      className={cn(
+        "flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4 lg:px-6",
+        isMobileChatOpen && "hidden lg:flex"
+      )}
+    >
       <div className="flex min-w-0 items-center gap-2">
         {/* Hamburger — mobile only. 44×44 hit target per Apple HIG. */}
         <button
@@ -146,3 +155,12 @@ export function Header({ onOpenSidebar }: HeaderProps) {
     </header>
   );
 }
+
+export function Header(props: HeaderProps) {
+  return (
+    <Suspense fallback={<div className="h-14 border-b border-border bg-background" />}>
+      <HeaderInner {...props} />
+    </Suspense>
+  );
+}
+

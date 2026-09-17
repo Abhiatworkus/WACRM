@@ -53,8 +53,9 @@ export default function NotificationsPage() {
   // "mark all read" fired from another tab/device stays in sync here.
   useEffect(() => {
     const supabase = createClient();
+    const topic = `notifications-page-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const channel = supabase
-      .channel("notifications-page")
+      .channel(topic)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "notifications" },

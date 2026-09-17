@@ -19,18 +19,17 @@ import {
   X,
   Loader2,
   Sparkles,
-  Plus,
   MessageSquareDashed,
   Zap,
+  Smile,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GatedButton } from "@/components/ui/gated-button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +40,7 @@ import {
 import { useCan } from "@/hooks/use-can";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { playOutgoingSound } from "@/lib/sound/wa-audio";
 import {
   uploadAccountMedia,
   deleteAccountMedia,
@@ -131,6 +131,12 @@ function formatDuration(seconds: number): string {
  *  Meta-accepted format means no server ffmpeg / transcode step. */
 const OPUS_ENCODER_PATH = "/opus/encoderWorker.min.js";
 
+/** Quick WhatsApp emoji picker set. */
+const WA_EMOJIS = [
+  "😀", "😂", "😍", "👍", "🙏", "❤️", "🔥", "🎉",
+  "👏", "😊", "😎", "🤝", "✅", "💯", "🚀", "✨",
+];
+
 export function MessageComposer({
   conversationId,
   sessionExpired,
@@ -154,6 +160,7 @@ export function MessageComposer({
     useState<InteractiveMessagePayload>(blankButtonsPayload);
   const [savingQuickReply, setSavingQuickReply] = useState(false);
   const [quickReplyOpen, setQuickReplyOpen] = useState(false);
+  const [attachmentSheetOpen, setAttachmentSheetOpen] = useState(false);
 
   // Media attachment state. `draft` holds an uploaded-but-not-yet-sent
   // attachment; `busy` covers the upload/transcode window.
@@ -220,6 +227,15 @@ export function MessageComposer({
     el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
   }, []);
 
+  const handleInsertEmoji = useCallback((emoji: string) => {
+    setText((prev) => {
+      const next = prev + emoji;
+      setTimeout(() => adjustHeight(), 0);
+      return next;
+    });
+    textareaRef.current?.focus();
+  }, [adjustHeight]);
+
   const handleSend = useCallback(async () => {
     const trimmed = text.trim();
     if (!trimmed || sending || sessionExpired) return;
@@ -227,6 +243,7 @@ export function MessageComposer({
     setSending(true);
     try {
       onSend(trimmed, replyTo?.id);
+      playOutgoingSound();
       setText("");
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
@@ -607,159 +624,277 @@ export function MessageComposer({
         />
       ) : recording ? (
         // Recording bar — replaces the composer while the mic is live.
-        <div className="flex items-center gap-3 rounded-xl border border-border bg-muted px-4 py-2.5">
-          <span className="flex h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-red-500" />
-          <span className="flex-1 text-sm text-foreground">
+        <div className="flex items-center gap-3 rounded-full border border-border/60 bg-white px-4 py-2 shadow-xs dark:bg-[#2a3942]">
+          <span className="flex h-3 w-3 shrink-0 animate-pulse rounded-full bg-red-500" />
+          <span className="flex-1 text-sm font-medium text-foreground">
             {t("recording", { current: formatDuration(recordSeconds), max: formatDuration(MAX_RECORDING_SECONDS) })}
           </span>
           <button
             type="button"
             onClick={cancelRecording}
-            className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-card hover:text-foreground"
+            className="rounded-full px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             {t("cancel")}
           </button>
-          <Button
-            size="sm"
+          <button
+            type="button"
             onClick={stopRecording}
-            className="h-9 w-9 shrink-0 bg-primary p-0 hover:bg-primary/90"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white shadow-xs transition-transform hover:bg-[#02906f] active:scale-95"
             title={t("stopAndAttach")}
           >
             <Square className="h-4 w-4" />
-          </Button>
+          </button>
         </div>
       ) : (
         <div className="flex items-end gap-2">
-          {/* Attach menu — photo / video / document / voice. */}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              disabled={inputsDisabled || busy}
-              title={
+          {/* WhatsApp style pill input */}
+          <div className="flex min-w-0 flex-1 items-end rounded-3xl bg-white px-2 py-1 shadow-xs transition-colors dark:bg-[#2a3942]">
+            {/* Emoji picker */}
+            <Popover>
+              <PopoverTrigger
+                disabled={inputsDisabled}
+                title="Emoji"
+                aria-label="Emoji"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground active:scale-95 disabled:opacity-40"
+              >
+                <Smile className="h-5 w-5" />
+              </PopoverTrigger>
+              <PopoverContent side="top" align="start" className="w-auto border-border bg-popover p-2 shadow-xl">
+                <div className="grid grid-cols-8 gap-1">
+                  {WA_EMOJIS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => handleInsertEmoji(emoji)}
+                      className="flex h-8 w-8 items-center justify-center rounded-md text-lg transition-transform hover:bg-muted active:scale-90"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {/* Message input */}
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              placeholder={
                 readOnly
-                  ? t("readOnlyTitle")
-                  : inputsDisabled
-                    ? undefined
-                    : t("attachMedia")
+                  ? t("readOnlyPlaceholder")
+                  : sessionExpired
+                    ? t("sessionExpiredPlaceholder")
+                    : t("typeMessagePlaceholder")
               }
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {busy ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Paperclip className="h-4 w-4" />
+              disabled={sessionExpired || readOnly}
+              rows={1}
+              title={readOnly ? t("readOnlyTitle") : undefined}
+              className={cn(
+                "max-h-28 min-h-[36px] flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-foreground placeholder-muted-foreground outline-none",
+                (sessionExpired || readOnly) && "cursor-not-allowed opacity-50"
               )}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="border-border bg-popover">
-              <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
-                <ImageIcon className="mr-2 h-4 w-4" />
-                {t("photo")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => videoInputRef.current?.click()}>
-                <Video className="mr-2 h-4 w-4" />
-                {t("video")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => documentInputRef.current?.click()}>
-                <FileText className="mr-2 h-4 w-4" />
-                {t("document")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void startRecording()}>
-                <Mic className="mr-2 h-4 w-4" />
-                {t("voiceNote")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            />
 
-          {/* + menu — interactive messages + quick replies. Gated on the
-              24h window like free-form text (interactive requires it). */}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              disabled={inputsDisabled}
-              title={
-                readOnly
-                  ? t("readOnlyTitle")
-                  : inputsDisabled
-                    ? undefined
-                    : t("moreActions")
-              }
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            {/* WhatsApp Attachment Sheet Popover */}
+            <Popover open={attachmentSheetOpen} onOpenChange={setAttachmentSheetOpen}>
+              <PopoverTrigger
+                disabled={inputsDisabled || busy}
+                title={
+                  readOnly
+                    ? t("readOnlyTitle")
+                    : inputsDisabled
+                      ? undefined
+                      : t("attachMedia")
+                }
+                aria-label="Attach"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {busy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Paperclip className="h-5 w-5" />
+                )}
+              </PopoverTrigger>
+              <PopoverContent
+                side="top"
+                align="end"
+                sideOffset={14}
+                className="w-72 sm:w-80 rounded-2xl border border-border/70 bg-white/98 p-4 shadow-2xl backdrop-blur-md dark:bg-[#1f2c34]/98"
+              >
+                <div className="grid grid-cols-4 gap-3">
+                  {/* Document */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachmentSheetOpen(false);
+                      documentInputRef.current?.click();
+                    }}
+                    className="group flex flex-col items-center gap-1.5 transition-transform active:scale-90"
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#7f66ff] text-white shadow-md transition-transform group-hover:scale-105">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <span className="max-w-full truncate text-[11px] font-medium text-foreground">
+                      {t("document")}
+                    </span>
+                  </button>
+
+                  {/* Photos */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachmentSheetOpen(false);
+                      imageInputRef.current?.click();
+                    }}
+                    className="group flex flex-col items-center gap-1.5 transition-transform active:scale-90"
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#ac44cf] text-white shadow-md transition-transform group-hover:scale-105">
+                      <ImageIcon className="h-5 w-5" />
+                    </div>
+                    <span className="max-w-full truncate text-[11px] font-medium text-foreground">
+                      {t("photo")}
+                    </span>
+                  </button>
+
+                  {/* Video */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachmentSheetOpen(false);
+                      videoInputRef.current?.click();
+                    }}
+                    className="group flex flex-col items-center gap-1.5 transition-transform active:scale-90"
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#d3396d] text-white shadow-md transition-transform group-hover:scale-105">
+                      <Video className="h-5 w-5" />
+                    </div>
+                    <span className="max-w-full truncate text-[11px] font-medium text-foreground">
+                      {t("video")}
+                    </span>
+                  </button>
+
+                  {/* Voice Note */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachmentSheetOpen(false);
+                      void startRecording();
+                    }}
+                    className="group flex flex-col items-center gap-1.5 transition-transform active:scale-90"
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#e05b38] text-white shadow-md transition-transform group-hover:scale-105">
+                      <Mic className="h-5 w-5" />
+                    </div>
+                    <span className="max-w-full truncate text-[11px] font-medium text-foreground">
+                      {t("voiceNote")}
+                    </span>
+                  </button>
+
+                  {/* Templates */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachmentSheetOpen(false);
+                      onOpenTemplates();
+                    }}
+                    className="group flex flex-col items-center gap-1.5 transition-transform active:scale-90"
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#02a698] text-white shadow-md transition-transform group-hover:scale-105">
+                      <LayoutTemplate className="h-5 w-5" />
+                    </div>
+                    <span className="max-w-full truncate text-[11px] font-medium text-foreground">
+                      {t("sendTemplate")}
+                    </span>
+                  </button>
+
+                  {/* Quick Reply */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachmentSheetOpen(false);
+                      setQuickReplyOpen(true);
+                    }}
+                    className="group flex flex-col items-center gap-1.5 transition-transform active:scale-90"
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#e49b0f] text-white shadow-md transition-transform group-hover:scale-105">
+                      <Zap className="h-5 w-5" />
+                    </div>
+                    <span className="max-w-full truncate text-[11px] font-medium text-foreground">
+                      {t("quickReplies")}
+                    </span>
+                  </button>
+
+                  {/* Interactive */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachmentSheetOpen(false);
+                      openInteractiveBuilder();
+                    }}
+                    className="group flex flex-col items-center gap-1.5 transition-transform active:scale-90"
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#007bfc] text-white shadow-md transition-transform group-hover:scale-105">
+                      <MessageSquareDashed className="h-5 w-5" />
+                    </div>
+                    <span className="max-w-full truncate text-[11px] font-medium text-foreground">
+                      {t("interactiveMessage")}
+                    </span>
+                  </button>
+
+                  {/* AI Draft */}
+                  <button
+                    type="button"
+                    disabled={drafting}
+                    onClick={() => {
+                      setAttachmentSheetOpen(false);
+                      handleDraft();
+                    }}
+                    className="group flex flex-col items-center gap-1.5 transition-transform active:scale-90 disabled:opacity-50"
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#6366f1] text-white shadow-md transition-transform group-hover:scale-105">
+                      {drafting ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-5 w-5" />
+                      )}
+                    </div>
+                    <span className="max-w-full truncate text-[11px] font-medium text-foreground">
+                      {t("draftWithAI")}
+                    </span>
+                  </button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          {/* Floating WhatsApp Green Action Button */}
+          {text.trim().length > 0 ? (
+            <button
+              type="button"
+              disabled={readOnly || sessionExpired || sending}
+              onClick={handleSend}
+              title={t("send")}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white shadow-md transition-all hover:bg-[#02906f] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <Plus className="h-4 w-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="border-border bg-popover">
-              <DropdownMenuItem onClick={() => openInteractiveBuilder()}>
-                <MessageSquareDashed className="mr-2 h-4 w-4" />
-                {t("interactiveMessage")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setQuickReplyOpen(true)}>
-                <Zap className="mr-2 h-4 w-4" />
-                {t("quickReplies")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <GatedButton
-            variant="ghost"
-            size="sm"
-            canAct={!readOnly}
-            gateReason="send messages"
-            title={readOnly ? undefined : t("sendTemplate")}
-            className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
-            onClick={onOpenTemplates}
-          >
-            <LayoutTemplate className="h-4 w-4" />
-          </GatedButton>
-
-          <GatedButton
-            variant="ghost"
-            size="sm"
-            canAct={!readOnly}
-            gateReason="send messages"
-            disabled={drafting}
-            title={readOnly ? undefined : t("draftWithAI")}
-            className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-primary"
-            onClick={handleDraft}
-          >
-            {drafting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
-          </GatedButton>
-
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              readOnly
-                ? t("readOnlyPlaceholder")
-                : sessionExpired
-                  ? t("sessionExpiredPlaceholder")
-                  : t("typeMessagePlaceholder")
-            }
-            disabled={sessionExpired || readOnly}
-            rows={1}
-            // Textarea keeps its own inline title — the GatedButton
-            // wrapping pattern doesn't apply to non-button inputs.
-            // The placeholder text also surfaces the read-only state.
-            title={readOnly ? t("readOnlyTitle") : undefined}
-            className={cn(
-              "flex-1 resize-none rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary/50",
-              (sessionExpired || readOnly) && "cursor-not-allowed opacity-50"
-            )}
-          />
-
-          <GatedButton
-            size="sm"
-            canAct={!readOnly}
-            gateReason="send messages"
-            disabled={!text.trim() || sessionExpired || sending}
-            onClick={handleSend}
-            className="h-9 w-9 shrink-0 bg-primary p-0 hover:bg-primary/90 disabled:opacity-40"
-          >
-            <Send className="h-4 w-4" />
-          </GatedButton>
+              {sending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Send className="h-5 w-5 translate-x-0.5" />
+              )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={inputsDisabled || busy}
+              onClick={() => void startRecording()}
+              title={t("voiceNote")}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white shadow-md transition-all hover:bg-[#02906f] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Mic className="h-5 w-5" />
+            </button>
+          )}
         </div>
       )}
 

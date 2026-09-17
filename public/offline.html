@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>WACRM — Offline</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #020617;
+      --surface: #0f172a;
+      --border: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #7c3aed;
+      --primary-glow: rgba(124, 58, 237, 0.15);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .container {
+      text-align: center;
+      max-width: 420px;
+      width: 100%;
+    }
+
+    /* Animated offline icon */
+    .icon-wrap {
+      width: 96px;
+      height: 96px;
+      margin: 0 auto 2rem;
+      position: relative;
+    }
+
+    .pulse-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 2px solid var(--primary);
+      opacity: 0;
+      animation: pulse 2.5s ease-out infinite;
+    }
+    .pulse-ring:nth-child(2) { animation-delay: 0.8s; }
+
+    @keyframes pulse {
+      0%   { transform: scale(0.8); opacity: 0.6; }
+      100% { transform: scale(1.6); opacity: 0; }
+    }
+
+    .icon-circle {
+      position: absolute;
+      inset: 0;
+      background: var(--primary-glow);
+      border: 2px solid var(--primary);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .icon-circle svg {
+      width: 40px;
+      height: 40px;
+      color: var(--primary);
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      letter-spacing: -0.02em;
+    }
+
+    p {
+      color: var(--text-muted);
+      font-size: 0.938rem;
+      line-height: 1.6;
+      margin-bottom: 2rem;
+    }
+
+    .retry-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.75rem;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 0.938rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .retry-btn:hover {
+      filter: brightness(1.15);
+      transform: translateY(-1px);
+    }
+
+    .retry-btn:active {
+      transform: translateY(0);
+    }
+
+    .retry-btn svg {
+      width: 18px;
+      height: 18px;
+      transition: transform 0.3s ease;
+    }
+
+    .retry-btn.loading svg {
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .status {
+      margin-top: 1.5rem;
+      font-size: 0.813rem;
+      color: var(--text-muted);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .status.visible { opacity: 1; }
+    .status.online { color: #22c55e; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon-wrap">
+      <div class="pulse-ring"></div>
+      <div class="pulse-ring"></div>
+      <div class="icon-circle">
+        <!-- Wi-Fi off icon -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="1" y1="1" x2="23" y2="23"/>
+          <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+          <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+          <path d="M10.71 5.05A16 16 0 0 1 22.56 9"/>
+          <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+          <line x1="12" y1="20" x2="12.01" y2="20"/>
+        </svg>
+      </div>
+    </div>
+
+    <h1>You're Offline</h1>
+    <p>
+      Check your internet connection and try again.
+      WACRM will reconnect automatically when you're back online.
+    </p>
+
+    <button class="retry-btn" id="retryBtn" onclick="retryConnection()">
+      <!-- Refresh icon -->
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"/>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+      Try Again
+    </button>
+
+    <div class="status" id="status"></div>
+  </div>
+
+  <script>
+    const btn = document.getElementById('retryBtn');
+    const status = document.getElementById('status');
+
+    function retryConnection() {
+      btn.classList.add('loading');
+      status.textContent = 'Checking connection…';
+      status.className = 'status visible';
+
+      fetch('/inbox', { method: 'HEAD', cache: 'no-store' })
+        .then(() => {
+          status.textContent = '✓ Back online! Redirecting…';
+          status.className = 'status visible online';
+          setTimeout(() => { window.location.href = '/inbox'; }, 500);
+        })
+        .catch(() => {
+          btn.classList.remove('loading');
+          status.textContent = 'Still offline. Will retry automatically.';
+          status.className = 'status visible';
+        });
+    }
+
+    // Auto-retry when browser detects connectivity.
+    window.addEventListener('online', () => {
+      status.textContent = '✓ Connection restored! Redirecting…';
+      status.className = 'status visible online';
+      setTimeout(() => { window.location.href = '/inbox'; }, 800);
+    });
+  </script>
+</body>
+</html>

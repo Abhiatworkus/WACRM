@@ -27,7 +27,11 @@ import {
   RefreshCw,
   PanelRightOpen,
   PanelRightClose,
+  Phone,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
+import { isSoundEnabled, setSoundEnabled } from "@/lib/sound/wa-audio";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
@@ -38,7 +42,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "./message-bubble";
 import { MessageActions } from "./message-actions";
 import { MediaLightbox } from "./media-lightbox";
@@ -148,7 +151,7 @@ const STATUS_OPTIONS: { label: string; value: ConversationStatus; color: string 
  * if we ever switch the asset, both spots update together.
  */
 const DOODLE_BG_CLASSES =
-  "bg-background bg-[url('/inbox-doodle.svg')] bg-repeat";
+  "bg-[#efeae2] dark:bg-[#0c1317] bg-[url('/inbox-doodle.svg')] bg-repeat";
 
 export function MessageThread({
   conversation,
@@ -199,6 +202,14 @@ export function MessageThread({
     }, 700);
   }, [isRefreshing, onRefresh]);
   const [replyTo, setReplyTo] = useState<ReplyDraft | null>(null);
+  const [soundActive, setSoundActive] = useState(() => isSoundEnabled());
+
+  const handleToggleSound = useCallback(() => {
+    const next = !soundActive;
+    setSoundActive(next);
+    setSoundEnabled(next);
+    toast.success(next ? "WhatsApp sounds enabled" : "WhatsApp sounds muted");
+  }, [soundActive]);
   // Which attachment the media viewer is showing. Lives here rather than in
   // the bubble so the viewer can page through every image/video in the
   // thread (issue #373). Paired with the conversation it belongs to and read
@@ -363,8 +374,9 @@ export function MessageThread({
     if (!conversationId) return;
     const supabase = createClient();
 
+    const topic = `reactions:${conversationId}:${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const channel = supabase
-      .channel(`reactions:${conversationId}`)
+      .channel(topic)
       .on(
         "postgres_changes",
         {
@@ -902,38 +914,43 @@ export function MessageThread({
     // root shrink lets the bubbles' break-words / max-w caps apply.
     // Issue #257.
     <div className={cn("flex min-w-0 flex-1 flex-col", DOODLE_BG_CLASSES)}>
-      {/* Header — solid card surface sits on top of the doodle so the
-          name/avatar/dropdowns stay legible. */}
-      <div className="flex items-center justify-between gap-2 border-b border-border bg-card px-3 py-3 sm:px-4">
+      {/* Header — WhatsApp contact bar surface */}
+      <div className="flex items-center justify-between gap-2 border-b border-border/70 bg-[#f0f2f5] px-3 py-2.5 transition-colors sm:px-4 dark:bg-[#202c33]">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          {/* Back-to-list button — mobile only. Hidden on lg+ where the
-              conversation list is always visible next to the thread. */}
+          {/* Back-to-list button — mobile only */}
           {onBack && (
             <button
               type="button"
               onClick={onBack}
               aria-label={t("backToConversations")}
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-black/5 active:scale-95 lg:hidden dark:hover:bg-white/10"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-5 w-5 text-foreground" />
             </button>
           )}
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
-            {displayName.charAt(0).toUpperCase()}
+          <div className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-semibold text-foreground overflow-hidden">
+            {contact.avatar_url ? (
+              <img
+                src={contact.avatar_url}
+                alt={displayName}
+                className="h-full w-full rounded-full object-cover"
+              />
+            ) : (
+              displayName.charAt(0).toUpperCase()
+            )}
           </div>
           <div className="min-w-0">
             <h2 className="truncate text-sm font-semibold text-foreground">{displayName}</h2>
-            <p className="truncate text-xs text-muted-foreground">
-              {contactHandle(contact)}
+            <p className="truncate text-[11px] text-muted-foreground">
+              {contact.phone || contactHandle(contact)}
             </p>
           </div>
-          {/* Session timer badge — hidden on the narrowest phones so
-              the name + back arrow keep their room. */}
+          {/* Session timer badge — hidden on the narrowest phones */}
           <Badge
             variant="outline"
             className={cn(
               "ml-1 hidden gap-1 border-border text-[10px] sm:inline-flex sm:ml-2",
-              sessionInfo.expired ? "text-red-400" : "text-primary"
+              sessionInfo.expired ? "text-red-400" : "text-[#00a884]"
             )}
           >
             <Clock className="h-3 w-3" />
@@ -941,7 +958,33 @@ export function MessageThread({
           </Badge>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Quick Call Button if phone number exists */}
+          {contact.phone && (
+            <a
+              href={`tel:${contact.phone}`}
+              title={contact.phone}
+              aria-label="Call Contact"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground active:scale-95 dark:hover:bg-white/10"
+            >
+              <Phone className="h-4 w-4" />
+            </a>
+          )}
+
+          {/* WhatsApp sound mute/unmute toggle */}
+          <button
+            type="button"
+            onClick={handleToggleSound}
+            title={soundActive ? "Mute chat sounds" : "Unmute chat sounds"}
+            aria-label="Toggle chat sounds"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground active:scale-95 dark:hover:bg-white/10"
+          >
+            {soundActive ? (
+              <Volume2 className="h-4 w-4" />
+            ) : (
+              <VolumeX className="h-4 w-4 text-red-400" />
+            )}
+          </button>
           {/* Contact-panel toggle — desktop only. The contact sidebar
               eats a chunk of horizontal width that crowds the thread on
               smaller laptops; this lets agents reclaim it when they just

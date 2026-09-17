@@ -119,8 +119,9 @@ export function useBrowserNotifications(): void {
       }
     };
 
+    const topic = `browser-notifications-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const channel = supabase
-      .channel("browser-notifications")
+      .channel(topic)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },

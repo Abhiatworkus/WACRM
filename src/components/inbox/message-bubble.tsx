@@ -62,17 +62,17 @@ function StatusIcon({
 }) {
   switch (status) {
     case "sending":
-      return <Clock className="h-3 w-3 text-muted-foreground" />;
+      return <Clock className="h-3 w-3 opacity-60" />;
     case "sent":
-      return <Check className="h-3 w-3 text-muted-foreground" />;
+      return <Check className="h-3.5 w-3.5 text-[#8696a0]" />;
     case "delivered":
-      return <CheckCheck className="h-3 w-3 text-muted-foreground" />;
+      return <CheckCheck className="h-3.5 w-3.5 text-[#8696a0]" />;
     case "read":
-      return <CheckCheck className="h-3 w-3 text-blue-400" />;
+      return <CheckCheck className="h-3.5 w-3.5 text-[#53bdeb]" />;
     case "failed":
       return (
         <span className="inline-flex" title={title ?? undefined}>
-          <XCircle className="h-3 w-3 text-red-400" />
+          <XCircle className="h-3.5 w-3.5 text-red-400" />
         </span>
       );
     default:
@@ -167,8 +167,8 @@ function MessageContent({
             className={cn(
               "mb-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium",
               isAgent
-                ? "bg-primary-foreground/20 text-primary-foreground"
-                : "bg-primary/20 text-primary",
+                ? "bg-black/10 text-current dark:bg-white/10"
+                : "bg-primary/15 text-primary",
             )}
           >
             <LayoutTemplate className="h-3 w-3" />
@@ -263,12 +263,34 @@ export function MessageBubble({
     >
       <div
         className={cn(
-          "relative rounded-2xl px-3 py-2",
+          "relative max-w-full rounded-2xl px-3 py-1.5 shadow-xs transition-colors",
           isAgent
-            ? "rounded-br-md bg-primary text-primary-foreground"
-            : "rounded-bl-md bg-muted text-foreground",
+            ? "rounded-tr-xs bg-[#d9fdd3] text-[#111b21] dark:bg-[#005c4b] dark:text-[#e9edef]"
+            : "rounded-tl-xs bg-white text-[#111b21] dark:bg-[#202c33] dark:text-[#e9edef]"
         )}
       >
+        {/* WhatsApp authentic bubble tail */}
+        {isAgent ? (
+          <svg
+            viewBox="0 0 8 13"
+            height="13"
+            width="8"
+            preserveAspectRatio="none"
+            className="pointer-events-none absolute -right-2 top-0 fill-current text-[#d9fdd3] dark:text-[#005c4b]"
+          >
+            <path d="M5.188 0H0v11.193l6.467-8.625C7.526 1.156 6.958 0 5.188 0z" />
+          </svg>
+        ) : (
+          <svg
+            viewBox="0 0 8 13"
+            height="13"
+            width="8"
+            preserveAspectRatio="none"
+            className="pointer-events-none absolute -left-2 top-0 fill-current text-white dark:text-[#202c33]"
+          >
+            <path d="M2.812 0H8v11.193l-6.467-8.625C.474 1.156 1.042 0 2.812 0z" />
+          </svg>
+        )}
         {reply && (
           <ReplyQuote
             authorLabel={reply.authorLabel}
@@ -284,17 +306,19 @@ export function MessageBubble({
         />
         <div
           className={cn(
-            "mt-1 flex items-center gap-1",
+            "mt-0.5 flex items-center gap-1 select-none",
             isAgent ? "justify-end" : "justify-start",
           )}
         >
-          {/* AI badge — only on replies the auto-reply bot generated
-              (always outbound, so it sits on the primary fill). Lets
-              agents tell an AI reply from their own / a Flow's at a
-              glance. */}
+          {/* AI badge */}
           {message.ai_generated && (
             <span
-              className="inline-flex items-center gap-0.5 rounded-full bg-primary-foreground/20 px-1.5 py-px text-[9px] font-semibold uppercase leading-none tracking-wide text-primary-foreground"
+              className={cn(
+                "inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[9px] font-semibold uppercase leading-none tracking-wide",
+                isAgent
+                  ? "bg-black/10 text-current dark:bg-white/15"
+                  : "bg-muted text-muted-foreground"
+              )}
               title={t("aiBadgeTitle")}
             >
               <Sparkles className="h-2.5 w-2.5" />
@@ -304,11 +328,9 @@ export function MessageBubble({
           <span
             className={cn(
               "text-[10px]",
-              // Outbound bubbles sit on the primary fill, so the
-              // timestamp must read against that (not the neutral
-              // foreground) — otherwise it goes low-contrast in light
-              // mode. Inbound bubbles use the muted surface.
-              isAgent ? "text-primary-foreground/70" : "text-muted-foreground",
+              isAgent
+                ? "text-[#53636f] dark:text-[#8696a0]"
+                : "text-[#667781] dark:text-[#8696a0]",
             )}
           >
             {time}

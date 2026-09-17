@@ -25,29 +25,20 @@ export function ReplyQuote({
   authorLabel,
   preview,
   onDismiss,
-  onPrimary = false,
 }: ReplyQuoteProps) {
   const t = useTranslations("Inbox.replyQuote");
   const isChip = !!onDismiss;
   return (
     <div
       className={cn(
-        "flex items-start gap-2 border-l-2 px-2 py-1",
-        onPrimary ? "border-primary-foreground/50" : "border-primary",
+        "flex items-start gap-2 border-l-[3px] border-[#00a884] px-2.5 py-1.5",
         isChip
-          ? "rounded-md bg-muted/80"
-          : onPrimary
-            ? "mb-1.5 rounded-md bg-primary-foreground/15"
-            : "mb-1.5 rounded-md bg-background/20",
+          ? "rounded-md bg-muted/90"
+          : "mb-1.5 rounded-md bg-black/5 dark:bg-black/25",
       )}
     >
       <div className="min-w-0 flex-1 overflow-hidden">
-        <div
-          className={cn(
-            "truncate text-[11px] font-medium",
-            onPrimary ? "text-primary-foreground" : "text-primary",
-          )}
-        >
+        <div className="truncate text-[11px] font-semibold text-[#00a884]">
           {authorLabel}
         </div>
         {/* Wrap the preview instead of truncating to a single line.

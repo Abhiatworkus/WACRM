@@ -32,17 +32,32 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [{ url: "/icon" }],
+    apple: [
+      { url: "/icons/icon-192x192.png", sizes: "192x192" },
+    ],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "WACRM",
   },
   formatDetection: {
     email: false,
     address: false,
     telephone: false,
   },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#020617",
+  themeColor: "#7c3aed",
   colorScheme: "dark light",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 // Inline boot script — runs before React hydrates so the user's
